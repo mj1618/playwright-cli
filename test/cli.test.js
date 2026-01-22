@@ -191,8 +191,9 @@ describe('playwright-cli', () => {
     });
 
     it('should handle runtime errors gracefully', async () => {
-      const result = await runCLI(['-e', 'await page.click("#nonexistent")', '--timeout=1000']);
+      const result = await runCLI(['-e', 'await page.click("#nonexistent", { timeout: 1000 })'], { timeout: 10000 });
       assert.strictEqual(result.code, 1);
+      assert.ok(result.stderr.includes('Error'));
     });
 
     it('should show error when -e has no code', async () => {
