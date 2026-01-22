@@ -54,7 +54,7 @@ playwright-cli -e "await page.title()" --page $PAGE_ID
 playwright-cli -e "await page.url()" --page $PAGE_ID
 
 # Screenshots
-playwright-cli -e "await page.screenshot({ path: 'screenshot.png' })" --page $PAGE_ID
+playwright-cli -e "await page.screenshot({ path: '/tmp/screenshot.png' })" --page $PAGE_ID
 
 # Evaluate in browser context
 playwright-cli -e "await page.evaluate(() => document.body.innerText)" --page $PAGE_ID
@@ -65,3 +65,31 @@ playwright-cli list-pages
 # Close the page when done
 playwright-cli close-page $PAGE_ID
 ```
+
+## playwright-cli Isolated Browser Sessions
+
+For completely isolated sessions (separate cookies, localStorage, auth), create isolated browsers:
+
+```bash
+# Create an isolated browser (returns browserId)
+BROWSER_ID=$(playwright-cli new-browser)
+
+# Create a page in the isolated browser
+PAGE_ID=$(playwright-cli new-page --browser $BROWSER_ID)
+
+# This page has completely separate cookies/auth from other browsers
+playwright-cli -e "await page.goto('https://example.com')" --page $PAGE_ID
+
+# List all browsers
+playwright-cli list-browsers
+# default     0 pages (default)
+# a1b2c3d4    1 page
+
+# Close the isolated browser when done (closes all its pages too)
+playwright-cli close-browser $BROWSER_ID
+```
+
+Use isolated browsers when you need:
+- Separate login sessions
+- Independent cookie/localStorage state
+- Testing multiple accounts simultaneously

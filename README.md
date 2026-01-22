@@ -14,6 +14,7 @@ A CLI for running Playwright commands against a persistent browser session.
 
 Key benefits for agents:
 - **Multi-user support** - Each user gets their own page with a unique `pageId`, enabling concurrent usage
+- **Isolated browser sessions** - Create separate browser contexts with independent cookies/auth for complete session isolation
 - **Persistent sessions** - The browser stays open between commands, maintaining cookies, auth state, and page context
 - **Simple shell interface** - Execute Playwright commands via `-e` flag, perfect for agents that can run shell commands
 - **Headless by default** - Runs without a visible window, ideal for server environments and CI/CD
@@ -57,9 +58,12 @@ playwright-cli stop
 | `start --headed` | Launch with visible browser window |
 | `stop` | Close the browser and stop the server |
 | `status` | Check if the server is running |
-| `new-page` | Create a new page and return its pageId |
+| `new-browser` | Create a new isolated browser session, returns browserId |
+| `close-browser <browserId>` | Close a browser and all its pages |
+| `list-browsers` | List all browser sessions with page counts |
+| `new-page [--browser <id>]` | Create a new page (in default browser if not specified) |
 | `close-page <pageId>` | Close a page by its pageId |
-| `list-pages` | List all active pages with their URLs |
+| `list-pages` | List all active pages with their URLs and browser IDs |
 | `-e "code" --page <pageId>` | Execute JavaScript code on a specific page |
 | `repl --page <pageId>` | Start an interactive REPL for a specific page |
 
@@ -114,9 +118,47 @@ playwright-cli -e "await page.goto('https://google.com')" --page $USER2_PAGE
 
 # Both pages operate independently
 playwright-cli list-pages
-# abc12345    https://github.com/
-# def67890    https://www.google.com/
+# abc12345    default    https://github.com/
+# def67890    default    https://www.google.com/
 ```
+
+## Isolated Browser Sessions
+
+For complete session isolation (separate cookies, localStorage, and auth), create isolated browser sessions:
+
+```bash
+# Create an isolated browser for user authentication
+BROWSER=$(playwright-cli new-browser)
+
+# Create pages in the isolated browser
+PAGE=$(playwright-cli new-page --browser $BROWSER)
+
+# This page has completely separate cookies/auth from other browsers
+playwright-cli -e "await page.goto('https://github.com/login')" --page $PAGE
+playwright-cli -e "await page.fill('#login_field', 'user1')" --page $PAGE
+
+# Create another isolated browser for a different account
+BROWSER2=$(playwright-cli new-browser)
+PAGE2=$(playwright-cli new-page --browser $BROWSER2)
+
+# This browser won't see any cookies from BROWSER
+playwright-cli -e "await page.goto('https://github.com')" --page $PAGE2
+# User is not logged in here - completely isolated session
+
+# List all browsers
+playwright-cli list-browsers
+# default     1 page (default)
+# a1b2c3d4    1 page
+# e5f6g7h8    1 page
+
+# Close an isolated browser when done
+playwright-cli close-browser $BROWSER
+```
+
+**When to use isolated browsers:**
+- Testing multiple user accounts simultaneously
+- Ensuring auth state doesn't leak between test scenarios
+- Running parallel tasks that need independent sessions
 
 ## Configuration
 

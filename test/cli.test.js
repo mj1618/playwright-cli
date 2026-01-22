@@ -317,6 +317,167 @@ describe('playwright-cli', () => {
     });
   });
 
+  describe('browser management', () => {
+    before(async () => {
+      // Ensure server is running
+      cleanup();
+      await runCLI(['start'], { timeout: 30000 });
+      await waitForServer();
+    });
+
+    it('should list no browsers initially', async () => {
+      const result = await runCLI(['list-browsers']);
+      assert.strictEqual(result.code, 0);
+      assert.ok(result.stdout.includes('No browsers'));
+    });
+
+    it('should create a new isolated browser', async () => {
+      const result = await runCLI(['new-browser']);
+      assert.strictEqual(result.code, 0);
+      assert.ok(result.stdout.length === 8, 'browserId should be 8 characters');
+    });
+
+    it('should list the created browser', async () => {
+      const result = await runCLI(['list-browsers']);
+      assert.strictEqual(result.code, 0);
+      assert.ok(result.stdout.includes('0 pages'));
+    });
+
+    it('should create page in specific browser', async () => {
+      // Create a new browser
+      const browserResult = await runCLI(['new-browser']);
+      const browserId = browserResult.stdout;
+      
+      // Create page in that browser
+      const pageResult = await runCLI(['new-page', '--browser', browserId]);
+      assert.strictEqual(pageResult.code, 0);
+      const pageId = pageResult.stdout;
+      
+      // Verify the browser now has 1 page
+      const listResult = await runCLI(['list-browsers']);
+      assert.ok(listResult.stdout.includes('1 page'));
+      
+      // Verify list-pages shows the browser ID
+      const pagesResult = await runCLI(['list-pages']);
+      assert.ok(pagesResult.stdout.includes(pageId));
+      assert.ok(pagesResult.stdout.includes(browserId));
+    });
+
+    it('should auto-create default browser when creating page without --browser', async () => {
+      // Create a page without specifying browser (should go to default)
+      const pageResult = await runCLI(['new-page']);
+      assert.strictEqual(pageResult.code, 0);
+      
+      // Verify default browser appears in list
+      const listResult = await runCLI(['list-browsers']);
+      assert.ok(listResult.stdout.includes('default'));
+      assert.ok(listResult.stdout.includes('(default)'));
+    });
+
+    it('should error when creating page in non-existent browser', async () => {
+      const result = await runCLI(['new-page', '--browser', 'nonexistent']);
+      assert.strictEqual(result.code, 1);
+      assert.ok(result.stderr.includes('not found') || result.stderr.includes('Browser not found'));
+    });
+
+    it('should close a browser and all its pages', async () => {
+      // Create a browser with a page
+      const browserResult = await runCLI(['new-browser']);
+      const browserId = browserResult.stdout;
+      
+      await runCLI(['new-page', '--browser', browserId]);
+      await runCLI(['new-page', '--browser', browserId]);
+      
+      // Close the browser
+      const closeResult = await runCLI(['close-browser', browserId]);
+      assert.strictEqual(closeResult.code, 0);
+      assert.ok(closeResult.stdout.includes('closed'));
+      
+      // Verify browser is gone
+      const listResult = await runCLI(['list-browsers']);
+      assert.ok(!listResult.stdout.includes(browserId));
+    });
+
+    it('should error when closing non-existent browser', async () => {
+      const result = await runCLI(['close-browser', 'nonexistent']);
+      assert.strictEqual(result.code, 1);
+      assert.ok(result.stderr.includes('not found'));
+    });
+
+    it('should show usage when no browserId provided to close-browser', async () => {
+      const result = await runCLI(['close-browser']);
+      assert.strictEqual(result.code, 1);
+      assert.ok(result.stderr.includes('Usage'));
+    });
+  });
+
+  describe('browser isolation (auth/cookies)', () => {
+    let browser1Id, browser2Id, page1Id, page2Id;
+
+    before(async () => {
+      // Ensure server is running
+      if (!(await waitForServer(3))) {
+        cleanup();
+        await runCLI(['start'], { timeout: 30000 });
+        await waitForServer();
+      }
+      
+      // Create two isolated browsers
+      const b1Result = await runCLI(['new-browser']);
+      browser1Id = b1Result.stdout;
+      
+      const b2Result = await runCLI(['new-browser']);
+      browser2Id = b2Result.stdout;
+      
+      // Create a page in each
+      const p1Result = await runCLI(['new-page', '--browser', browser1Id]);
+      page1Id = p1Result.stdout;
+      
+      const p2Result = await runCLI(['new-page', '--browser', browser2Id]);
+      page2Id = p2Result.stdout;
+    });
+
+    it('should have separate localStorage between browsers', async () => {
+      // Set localStorage in browser 1
+      await runCLI(['-e', "await page.goto('https://example.com')", '--page', page1Id], { timeout: 15000 });
+      await runCLI(['-e', "await page.evaluate(() => localStorage.setItem('test', 'browser1'))", '--page', page1Id]);
+      
+      // Navigate browser 2 to same site
+      await runCLI(['-e', "await page.goto('https://example.com')", '--page', page2Id], { timeout: 15000 });
+      
+      // Verify browser 2 doesn't have the localStorage item
+      const result = await runCLI(['-e', "await page.evaluate(() => localStorage.getItem('test'))", '--page', page2Id]);
+      assert.strictEqual(result.code, 0);
+      assert.ok(result.stdout === 'null', 'Browser 2 should not see localStorage from Browser 1');
+      
+      // Verify browser 1 still has it
+      const result1 = await runCLI(['-e', "await page.evaluate(() => localStorage.getItem('test'))", '--page', page1Id]);
+      assert.strictEqual(result1.code, 0);
+      assert.ok(result1.stdout === 'browser1', 'Browser 1 should still have its localStorage');
+    });
+
+    it('should have separate cookies between browsers', async () => {
+      // Set a cookie in browser 1
+      await runCLI(['-e', "await page.evaluate(() => document.cookie = 'session=abc123')", '--page', page1Id]);
+      
+      // Navigate browser 2 to same site (already there from previous test)
+      // Check browser 2 doesn't have the cookie
+      const result = await runCLI(['-e', "await page.evaluate(() => document.cookie)", '--page', page2Id]);
+      assert.strictEqual(result.code, 0);
+      assert.ok(!result.stdout.includes('session=abc123'), 'Browser 2 should not see cookies from Browser 1');
+      
+      // Verify browser 1 still has the cookie
+      const result1 = await runCLI(['-e', "await page.evaluate(() => document.cookie)", '--page', page1Id]);
+      assert.ok(result1.stdout.includes('session=abc123'), 'Browser 1 should still have its cookie');
+    });
+
+    after(async () => {
+      // Clean up browsers
+      if (browser1Id) await runCLI(['close-browser', browser1Id]);
+      if (browser2Id) await runCLI(['close-browser', browser2Id]);
+    });
+  });
+
   describe('stop command', () => {
     it('should stop the server', async () => {
       const result = await runCLI(['stop']);

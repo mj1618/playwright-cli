@@ -17,6 +17,15 @@ function parsePageId(args) {
   return null;
 }
 
+// Parse --browser flag from args
+function parseBrowserId(args) {
+  const browserIndex = args.indexOf('--browser');
+  if (browserIndex !== -1 && args[browserIndex + 1]) {
+    return args[browserIndex + 1];
+  }
+  return null;
+}
+
 async function main() {
   if (command === 'start') {
     // Check if server is already running
@@ -80,8 +89,10 @@ async function main() {
     }
     
   } else if (command === 'new-page') {
+    const browserId = parseBrowserId(args);
     try {
-      const response = await sendCommand('newPage');
+      const options = browserId ? { browserId } : {};
+      const response = await sendCommand('newPage', options);
       if (response.success) {
         console.log(response.pageId);
       } else {
@@ -121,7 +132,63 @@ async function main() {
           console.log('No pages. Create one with: playwright-cli new-page');
         } else {
           for (const page of response.pages) {
-            console.log(`${page.pageId}\t${page.url}`);
+            console.log(`${page.pageId}\t${page.browserId}\t${page.url}`);
+          }
+        }
+      } else {
+        console.error('Error:', response.error);
+        process.exit(1);
+      }
+    } catch (err) {
+      console.error(err.message);
+      process.exit(1);
+    }
+    
+  } else if (command === 'new-browser') {
+    try {
+      const response = await sendCommand('newBrowser');
+      if (response.success) {
+        console.log(response.browserId);
+      } else {
+        console.error('Error:', response.error);
+        process.exit(1);
+      }
+    } catch (err) {
+      console.error(err.message);
+      process.exit(1);
+    }
+    
+  } else if (command === 'close-browser') {
+    const browserId = args[1];
+    if (!browserId) {
+      console.error('Usage: playwright-cli close-browser <browserId>');
+      process.exit(1);
+    }
+    
+    try {
+      const response = await sendCommand('closeBrowser', { browserId });
+      if (response.success) {
+        console.log('Browser closed.');
+      } else {
+        console.error('Error:', response.error);
+        process.exit(1);
+      }
+    } catch (err) {
+      console.error(err.message);
+      process.exit(1);
+    }
+    
+  } else if (command === 'list-browsers') {
+    try {
+      const response = await sendCommand('listBrowsers');
+      if (response.success) {
+        if (response.browsers.length === 0) {
+          console.log('No browsers. Create one with: playwright-cli new-browser');
+        } else {
+          for (const browser of response.browsers) {
+            const defaultMarker = browser.isDefault ? ' (default)' : '';
+            const pageWord = browser.pageCount === 1 ? 'page' : 'pages';
+            console.log(`${browser.browserId}\t${browser.pageCount} ${pageWord}${defaultMarker}`);
           }
         }
       } else {
@@ -224,27 +291,41 @@ async function main() {
 Usage: playwright-cli <command> [options]
 
 Commands:
-  start           Start the Playwright server (launches browser in headless mode)
-    --headed      Show the browser window (default: headless)
-  stop            Stop the Playwright server
-  status          Check if server is running
-  new-page        Create a new page and return its pageId
-  close-page <id> Close a page by its pageId
-  list-pages      List all active pages
-  repl --page <id>  Start interactive REPL for a specific page
+  start              Start the Playwright server (launches browser in headless mode)
+    --headed         Show the browser window (default: headless)
+  stop               Stop the Playwright server
+  status             Check if server is running
+
+  Browser commands (for isolated sessions):
+  new-browser        Create a new isolated browser session, returns browserId
+  close-browser <id> Close a browser and all its pages
+  list-browsers      List all browser sessions
+
+  Page commands:
+  new-page [--browser <id>]  Create a new page (in default browser if not specified)
+  close-page <id>    Close a page by its pageId
+  list-pages         List all active pages
+
+  Execution:
   -e "code" --page <id>  Execute JavaScript code on a specific page
-  help            Show this help message
+  repl --page <id>       Start interactive REPL for a specific page
+  help                   Show this help message
 
 Examples:
-  playwright-cli start
+  # Basic usage (uses default browser)
   playwright-cli start --headed
   playwright-cli new-page                    # Returns: abc12345
   playwright-cli -e "await page.goto('https://example.com')" --page abc12345
   playwright-cli -e "await page.title()" --page abc12345
   playwright-cli list-pages
-  playwright-cli repl --page abc12345
   playwright-cli close-page abc12345
   playwright-cli stop
+
+  # Isolated browser session (separate cookies/auth)
+  playwright-cli new-browser                 # Returns: xyz98765
+  playwright-cli new-page --browser xyz98765 # Create page in isolated browser
+  playwright-cli list-browsers
+  playwright-cli close-browser xyz98765
 `);
     
   } else {
