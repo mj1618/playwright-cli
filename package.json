@@ -28,7 +28,7 @@
     "url": "git+https://github.com/mj1618/playwright-cli.git"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=20.0.0"
   },
   "dependencies": {
     "playwright": "^1.57.0",
