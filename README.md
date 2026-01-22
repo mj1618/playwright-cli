@@ -13,6 +13,7 @@ A CLI for running Playwright commands against a persistent browser session.
 **playwright-cli** was created so that any AI agent can easily use a headless browser. By providing a simple command-line interface to a persistent browser session, agents can navigate the web, interact with pages, and extract information without needing to manage browser lifecycle or write complex integration code.
 
 Key benefits for agents:
+- **Multi-user support** - Each user gets their own page with a unique `pageId`, enabling concurrent usage
 - **Persistent sessions** - The browser stays open between commands, maintaining cookies, auth state, and page context
 - **Simple shell interface** - Execute Playwright commands via `-e` flag, perfect for agents that can run shell commands
 - **Headless by default** - Runs without a visible window, ideal for server environments and CI/CD
@@ -33,11 +34,18 @@ playwright-cli start
 # Or start with visible browser window
 playwright-cli start --headed
 
-# Run commands against the browser
-playwright-cli -e "await page.goto('https://example.com')"
-playwright-cli -e "await page.title()"
+# Create a new page and get its pageId
+playwright-cli new-page
+# Returns: abc12345
 
-# Stop when done
+# Run commands against the browser (pageId required)
+playwright-cli -e "await page.goto('https://example.com')" --page abc12345
+playwright-cli -e "await page.title()" --page abc12345
+
+# Close the page when done
+playwright-cli close-page abc12345
+
+# Stop the server when completely done
 playwright-cli stop
 ```
 
@@ -49,34 +57,65 @@ playwright-cli stop
 | `start --headed` | Launch with visible browser window |
 | `stop` | Close the browser and stop the server |
 | `status` | Check if the server is running |
-| `-e "code"` | Execute JavaScript code |
-| `repl` | Start an interactive REPL |
+| `new-page` | Create a new page and return its pageId |
+| `close-page <pageId>` | Close a page by its pageId |
+| `list-pages` | List all active pages with their URLs |
+| `-e "code" --page <pageId>` | Execute JavaScript code on a specific page |
+| `repl --page <pageId>` | Start an interactive REPL for a specific page |
 
 ## Available Variables
 
 When executing code, these variables are in scope:
 
-- `page` - the current [Page](https://playwright.dev/docs/api/class-page)
+- `page` - the current [Page](https://playwright.dev/docs/api/class-page) (for the specified pageId)
 - `browser` - the [Browser](https://playwright.dev/docs/api/class-browser) instance
 - `context` - the [BrowserContext](https://playwright.dev/docs/api/class-browsercontext)
 
 ## Examples
 
 ```bash
+# Create a page first
+PAGE_ID=$(playwright-cli new-page)
+
 # Navigate and interact
-playwright-cli -e "await page.goto('https://github.com')"
-playwright-cli -e "await page.click('a[href=\"/login\"]')"
-playwright-cli -e "await page.fill('#login_field', 'username')"
+playwright-cli -e "await page.goto('https://github.com')" --page $PAGE_ID
+playwright-cli -e "await page.click('a[href=\"/login\"]')" --page $PAGE_ID
+playwright-cli -e "await page.fill('#login_field', 'username')" --page $PAGE_ID
 
 # Get page info
-playwright-cli -e "await page.title()"
-playwright-cli -e "await page.url()"
+playwright-cli -e "await page.title()" --page $PAGE_ID
+playwright-cli -e "await page.url()" --page $PAGE_ID
 
 # Screenshots
-playwright-cli -e "await page.screenshot({ path: 'screenshot.png' })"
+playwright-cli -e "await page.screenshot({ path: 'screenshot.png' })" --page $PAGE_ID
 
 # Evaluate in browser context
-playwright-cli -e "await page.evaluate(() => document.body.innerText)"
+playwright-cli -e "await page.evaluate(() => document.body.innerText)" --page $PAGE_ID
+
+# List all active pages
+playwright-cli list-pages
+
+# Close the page when done
+playwright-cli close-page $PAGE_ID
+```
+
+## Multi-User Support
+
+The `pageId` system allows multiple users or agents to use the same browser server concurrently without interfering with each other. Each page is isolated:
+
+```bash
+# User 1 creates their page
+USER1_PAGE=$(playwright-cli new-page)
+playwright-cli -e "await page.goto('https://github.com')" --page $USER1_PAGE
+
+# User 2 creates their own page (at the same time)
+USER2_PAGE=$(playwright-cli new-page)
+playwright-cli -e "await page.goto('https://google.com')" --page $USER2_PAGE
+
+# Both pages operate independently
+playwright-cli list-pages
+# abc12345    https://github.com/
+# def67890    https://www.google.com/
 ```
 
 ## Configuration

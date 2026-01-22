@@ -72,7 +72,8 @@ describe('playwright-cli', () => {
       assert.ok(result.stdout.includes('Usage: playwright-cli'));
       assert.ok(result.stdout.includes('start'));
       assert.ok(result.stdout.includes('stop'));
-      assert.ok(result.stdout.includes('-e, --eval'));
+      assert.ok(result.stdout.includes('-e'));
+      assert.ok(result.stdout.includes('new-page'));
     });
 
     it('should show help with help command', async () => {
@@ -108,9 +109,15 @@ describe('playwright-cli', () => {
   describe('exec command (server not running)', () => {
     it('should error when server not running', async () => {
       cleanup();
-      const result = await runCLI(['-e', 'page.url()']);
+      const result = await runCLI(['-e', 'page.url()', '--page', 'test123']);
       assert.strictEqual(result.code, 1);
       assert.ok(result.stdout.includes('not running') || result.stderr.includes('not running'));
+    });
+
+    it('should error when --page is not provided', async () => {
+      const result = await runCLI(['-e', 'page.url()']);
+      assert.strictEqual(result.code, 1);
+      assert.ok(result.stderr.includes('--page') || result.stderr.includes('pageId'));
     });
   });
 
@@ -139,32 +146,79 @@ describe('playwright-cli', () => {
     });
   });
 
-  describe('code execution', () => {
+  describe('page management', () => {
+    let pageId;
+
+    it('should list no pages initially', async () => {
+      const result = await runCLI(['list-pages']);
+      assert.strictEqual(result.code, 0);
+      assert.ok(result.stdout.includes('No pages'));
+    });
+
+    it('should create a new page', async () => {
+      const result = await runCLI(['new-page']);
+      assert.strictEqual(result.code, 0);
+      assert.ok(result.stdout.length === 8, 'pageId should be 8 characters');
+      pageId = result.stdout;
+    });
+
+    it('should list the created page', async () => {
+      const result = await runCLI(['list-pages']);
+      assert.strictEqual(result.code, 0);
+      assert.ok(result.stdout.includes(pageId));
+      assert.ok(result.stdout.includes('about:blank'));
+    });
+
+    it('should create a second page', async () => {
+      const result = await runCLI(['new-page']);
+      assert.strictEqual(result.code, 0);
+      const secondPageId = result.stdout;
+      assert.ok(secondPageId.length === 8);
+      assert.notStrictEqual(secondPageId, pageId, 'Page IDs should be unique');
+    });
+
+    it('should list multiple pages', async () => {
+      const result = await runCLI(['list-pages']);
+      assert.strictEqual(result.code, 0);
+      const lines = result.stdout.split('\n');
+      assert.ok(lines.length >= 2, 'Should have at least 2 pages listed');
+    });
+  });
+
+  describe('code execution with pageId', () => {
+    let pageId;
+
+    before(async () => {
+      // Create a fresh page for these tests
+      const result = await runCLI(['new-page']);
+      pageId = result.stdout;
+    });
+
     it('should get page URL', async () => {
-      const result = await runCLI(['-e', 'page.url()']);
+      const result = await runCLI(['-e', 'page.url()', '--page', pageId]);
       assert.strictEqual(result.code, 0);
       assert.ok(result.stdout.includes('about:blank'));
     });
 
     it('should navigate to a page', async () => {
-      const result = await runCLI(['-e', "await page.goto('https://example.com')"], { timeout: 15000 });
+      const result = await runCLI(['-e', "await page.goto('https://example.com')", '--page', pageId], { timeout: 15000 });
       assert.strictEqual(result.code, 0);
     });
 
     it('should get page title', async () => {
-      const result = await runCLI(['-e', 'await page.title()']);
+      const result = await runCLI(['-e', 'await page.title()', '--page', pageId]);
       assert.strictEqual(result.code, 0);
       assert.ok(result.stdout.includes('Example Domain'));
     });
 
     it('should get current URL after navigation', async () => {
-      const result = await runCLI(['-e', 'page.url()']);
+      const result = await runCLI(['-e', 'page.url()', '--page', pageId]);
       assert.strictEqual(result.code, 0);
       assert.ok(result.stdout.includes('example.com'));
     });
 
     it('should evaluate JavaScript in page context', async () => {
-      const result = await runCLI(['-e', 'await page.evaluate(() => document.title)']);
+      const result = await runCLI(['-e', 'await page.evaluate(() => document.title)', '--page', pageId]);
       assert.strictEqual(result.code, 0);
       assert.ok(result.stdout.includes('Example Domain'));
     });
@@ -174,7 +228,7 @@ describe('playwright-cli', () => {
       // Clean up any existing screenshot
       try { fs.unlinkSync(screenshotPath); } catch {}
       
-      const result = await runCLI(['-e', `await page.screenshot({ path: '${screenshotPath}' })`]);
+      const result = await runCLI(['-e', `await page.screenshot({ path: '${screenshotPath}' })`, '--page', pageId]);
       assert.strictEqual(result.code, 0);
       assert.ok(fs.existsSync(screenshotPath), 'Screenshot file should exist');
       
@@ -186,19 +240,78 @@ describe('playwright-cli', () => {
     });
 
     it('should handle syntax errors gracefully', async () => {
-      const result = await runCLI(['-e', 'invalid syntax here']);
+      const result = await runCLI(['-e', 'invalid syntax here', '--page', pageId]);
       assert.strictEqual(result.code, 1);
       assert.ok(result.stderr.includes('Error'));
     });
 
     it('should handle runtime errors gracefully', async () => {
-      const result = await runCLI(['-e', 'await page.click("#nonexistent", { timeout: 1000 })'], { timeout: 10000 });
+      const result = await runCLI(['-e', 'await page.click("#nonexistent", { timeout: 1000 })', '--page', pageId], { timeout: 10000 });
       assert.strictEqual(result.code, 1);
       assert.ok(result.stderr.includes('Error'));
     });
 
-    it('should show error when -e has no code', async () => {
-      const result = await runCLI(['-e']);
+    it('should error when -e has no code', async () => {
+      const result = await runCLI(['-e', '--page', pageId]);
+      assert.strictEqual(result.code, 1);
+      assert.ok(result.stderr.includes('Usage') || result.stderr.includes('pageId'));
+    });
+
+    it('should error when page does not exist', async () => {
+      const result = await runCLI(['-e', 'page.url()', '--page', 'nonexistent']);
+      assert.strictEqual(result.code, 1);
+      assert.ok(result.stderr.includes('not found') || result.stderr.includes('Page not found'));
+    });
+  });
+
+  describe('page isolation', () => {
+    it('should isolate pages from each other', async () => {
+      // Create two pages
+      const result1 = await runCLI(['new-page']);
+      const page1 = result1.stdout;
+      
+      const result2 = await runCLI(['new-page']);
+      const page2 = result2.stdout;
+      
+      // Navigate page1 to example.com
+      await runCLI(['-e', "await page.goto('https://example.com')", '--page', page1], { timeout: 15000 });
+      
+      // Navigate page2 to a different URL
+      await runCLI(['-e', "await page.goto('https://www.iana.org/')", '--page', page2], { timeout: 15000 });
+      
+      // Verify page1 is still on example.com
+      const url1 = await runCLI(['-e', 'page.url()', '--page', page1]);
+      assert.ok(url1.stdout.includes('example.com'), 'Page 1 should be on example.com');
+      
+      // Verify page2 is on iana.org
+      const url2 = await runCLI(['-e', 'page.url()', '--page', page2]);
+      assert.ok(url2.stdout.includes('iana.org'), 'Page 2 should be on iana.org');
+    });
+  });
+
+  describe('close-page command', () => {
+    it('should close a page', async () => {
+      const newPageResult = await runCLI(['new-page']);
+      const pageId = newPageResult.stdout;
+      
+      const result = await runCLI(['close-page', pageId]);
+      assert.strictEqual(result.code, 0);
+      assert.ok(result.stdout.includes('closed'));
+      
+      // Verify the page is gone
+      const execResult = await runCLI(['-e', 'page.url()', '--page', pageId]);
+      assert.strictEqual(execResult.code, 1);
+      assert.ok(execResult.stderr.includes('not found'));
+    });
+
+    it('should error when closing non-existent page', async () => {
+      const result = await runCLI(['close-page', 'nonexistent']);
+      assert.strictEqual(result.code, 1);
+      assert.ok(result.stderr.includes('not found'));
+    });
+
+    it('should show usage when no pageId provided', async () => {
+      const result = await runCLI(['close-page']);
       assert.strictEqual(result.code, 1);
       assert.ok(result.stderr.includes('Usage'));
     });
