@@ -1,0 +1,37 @@
+{
+  "name": "@mj1618/playwright-cli",
+  "version": "1.0.0",
+  "description": "A CLI for running Playwright commands against a persistent browser session",
+  "bin": {
+    "playwright-cli": "./bin/playwright-cli.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test test/cli.test.js"
+  },
+  "keywords": [
+    "playwright",
+    "browser",
+    "automation",
+    "cli",
+    "repl",
+    "chromium"
+  ],
+  "author": "mj1618",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mj1618/playwright-cli.git"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "dependencies": {
+    "playwright": "^1.57.0",
+    "repl": "^0.1.3"
+  }
+}
