@@ -1,6 +1,6 @@
 {
   "name": "@mj1618/playwright-cli",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "A CLI for running Playwright commands against a persistent browser session",
   "bin": {
     "playwright-cli": "./bin/playwright-cli.js"
