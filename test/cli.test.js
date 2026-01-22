@@ -35,7 +35,8 @@ function runCLI(args, options = {}) {
 async function waitForServer(maxAttempts = 10) {
   for (let i = 0; i < maxAttempts; i++) {
     const result = await runCLI(['status']);
-    if (result.stdout.includes('running')) {
+    // Check for "is running" to avoid matching "not running"
+    if (result.stdout.includes('is running')) {
       return true;
     }
     await new Promise(r => setTimeout(r, 500));
@@ -116,7 +117,7 @@ describe('playwright-cli', () => {
   describe('server lifecycle', () => {
     it('should start server', async () => {
       cleanup();
-      const result = await runCLI(['start'], { timeout: 15000 });
+      const result = await runCLI(['start'], { timeout: 30000 });
       assert.strictEqual(result.code, 0);
       assert.ok(result.stdout.includes('started') || result.stdout.includes('ready'));
     });

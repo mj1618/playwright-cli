@@ -28,10 +28,20 @@ async function main() {
     });
     child.unref();
     
-    // Wait a moment for server to start
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Poll for server to be ready (up to 10 seconds)
+    const maxAttempts = 20;
+    const pollInterval = 500;
+    let started = false;
     
-    if (await isServerRunning()) {
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+      if (await isServerRunning()) {
+        started = true;
+        break;
+      }
+    }
+    
+    if (started) {
       console.log(`Playwright server started (socket: ${SOCKET_PATH})`);
       console.log('Browser is ready. Use playwright-cli -e "code" to execute commands.');
     } else {
