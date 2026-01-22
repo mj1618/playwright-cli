@@ -1,5 +1,11 @@
 # playwright-cli
 
+[![npm version](https://img.shields.io/npm/v/@mj1618/playwright-cli.svg)](https://www.npmjs.com/package/@mj1618/playwright-cli)
+[![npm downloads](https://img.shields.io/npm/dm/@mj1618/playwright-cli.svg)](https://www.npmjs.com/package/@mj1618/playwright-cli)
+[![license](https://img.shields.io/npm/l/@mj1618/playwright-cli.svg)](https://github.com/mj1618/playwright-cli/blob/main/LICENSE)
+[![node](https://img.shields.io/node/v/@mj1618/playwright-cli.svg)](https://www.npmjs.com/package/@mj1618/playwright-cli)
+[![CI](https://github.com/mj1618/playwright-cli/actions/workflows/test.yml/badge.svg)](https://github.com/mj1618/playwright-cli/actions/workflows/test.yml)
+
 A CLI for running Playwright commands against a persistent browser session.
 
 ## Why playwright-cli?
