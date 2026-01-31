@@ -1,9 +1,15 @@
-const net = require('net');
-const path = require('path');
+import * as net from 'net';
+import * as path from 'path';
+import * as os from 'os';
+import type { CommandResponse } from './types.js';
 
-const SOCKET_PATH = process.env.PLAYWRIGHT_CLI_SOCKET || path.join(require('os').homedir(), '.playwright-cli.sock');
+export const SOCKET_PATH = process.env.PLAYWRIGHT_CLI_SOCKET || path.join(os.homedir(), '.playwright-cli.sock');
 
-function sendCommand(command, options = {}) {
+interface NodeError extends Error {
+  code?: string;
+}
+
+export function sendCommand(command: string, options: Record<string, unknown> = {}): Promise<CommandResponse> {
   return new Promise((resolve, reject) => {
     const socket = net.createConnection(SOCKET_PATH);
     
@@ -13,19 +19,19 @@ function sendCommand(command, options = {}) {
     });
 
     let data = '';
-    socket.on('data', (chunk) => {
+    socket.on('data', (chunk: Buffer) => {
       data += chunk.toString();
     });
 
     socket.on('end', () => {
       try {
-        resolve(JSON.parse(data));
-      } catch (err) {
+        resolve(JSON.parse(data) as CommandResponse);
+      } catch {
         reject(new Error('Invalid response from server'));
       }
     });
 
-    socket.on('error', (err) => {
+    socket.on('error', (err: NodeError) => {
       if (err.code === 'ENOENT' || err.code === 'ECONNREFUSED') {
         reject(new Error('Server not running. Start it with: playwright-cli start'));
       } else {
@@ -35,7 +41,7 @@ function sendCommand(command, options = {}) {
   });
 }
 
-function isServerRunning() {
+export function isServerRunning(): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = net.createConnection(SOCKET_PATH);
     
@@ -53,5 +59,3 @@ function isServerRunning() {
     });
   });
 }
-
-module.exports = { sendCommand, isServerRunning, SOCKET_PATH };
