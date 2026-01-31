@@ -26,6 +26,18 @@ Key benefits for agents:
 npm install -g @mj1618/playwright-cli
 ```
 
+After installing, you need to install Playwright's Chromium browser:
+
+```bash
+npx playwright install chromium
+```
+
+On Linux, you may also need to install system dependencies:
+
+```bash
+npx playwright install-deps chromium
+```
+
 ## Quick Start
 
 ```bash

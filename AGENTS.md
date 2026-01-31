@@ -6,6 +6,24 @@ ALWAYS open the browser with `--headed`
 Make sure to close your page when you're done with it, but leave playwright-cli as started (don't stop it).
 Always save screenshots to /tmp
 
+## Install
+
+```bash
+npm install -g @mj1618/playwright-cli
+```
+
+After installing, you need to install Playwright's Chromium browser:
+
+```bash
+npx playwright install chromium
+```
+
+On Linux, you may also need to install system dependencies:
+
+```bash
+npx playwright install-deps chromium
+```
+
 ## Custom Playwright Scripts
 
 For full flexibility, use `-e` to run any Playwright code directly:
